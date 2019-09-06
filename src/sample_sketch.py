@@ -9,6 +9,7 @@ import os
 import math
 import json
 import tensorflow as tf
+import argparse
 from six.moves import xrange
 
 from IPython.display import SVG, display
@@ -119,7 +120,12 @@ def decode(z_input=None, draw_mode=True, temperature=0.1, factor=0.2):
         draw_strokes(strokes, factor)
     return strokes
 
-model_dir = '/home/usmann/Development/scratch/sketch_rnn/flamingo/lstm_uncond'
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--data_dir")
+args = parser.parse_args()
+
+model_dir = args.data_dir or '/home/usmann/Development/scratch/sketch_rnn/flamingo/lstm_uncond'
 [hps_model, eval_hps_model, sample_hps_model] = load_model_compatible(model_dir)
 reset_graph()
 eval_model = Model(eval_hps_model, reuse=True)
