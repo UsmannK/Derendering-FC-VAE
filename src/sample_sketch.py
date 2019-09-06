@@ -134,6 +134,7 @@ args = parser.parse_args()
 model_dir = args.data_dir or '/home/usmann/Development/scratch/sketch_rnn/flamingo/lstm_uncond'
 [hps_model, eval_hps_model, sample_hps_model] = load_model_compatible(model_dir)
 reset_graph()
+model = Model(hps_model)
 eval_model = Model(eval_hps_model, reuse=True)
 sample_model = Model(sample_hps_model, reuse=True)
 
