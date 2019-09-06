@@ -78,6 +78,40 @@ def load_dataset(data_dir, max_files=10):
         data['test'].extend(images['test'])
         data['valid'].extend(images['valid'])
     return data
+def get_bounds(data, factor=10):
+    """Return bounds of data."""
+    min_x = 0
+    max_x = 0
+    min_y = 0
+    max_y = 0
+
+    abs_x = 0
+    abs_y = 0
+    for i in range(len(data)):
+        x = float(data[i, 0]) / factor
+        y = float(data[i, 1]) / factor
+        abs_x += x
+        abs_y += y
+        min_x = min(min_x, abs_x)
+        min_y = min(min_y, abs_y)
+        max_x = max(max_x, abs_x)
+        max_y = max(max_y, abs_y)
+
+    return (min_x, max_x, min_y, max_y)
+
+def to_normal_strokes(big_stroke):
+    """Convert from stroke-5 format (from sketch-rnn paper) back to stroke-3."""
+    l = 0
+    for i in range(len(big_stroke)):
+        if big_stroke[i, 4] > 0:
+            l = i
+            break
+    if l == 0:
+        l = len(big_stroke)
+    result = np.zeros((l, 3))
+    result[:, 0:2] = big_stroke[0:l, 0:2]
+    result[:, 2] = big_stroke[0:l, 3]
+    return result
 
 class DataLoader(object):
     """Class for loading data."""

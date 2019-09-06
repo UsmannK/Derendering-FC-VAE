@@ -334,19 +334,19 @@ class Model(object):
 
         self.r_cost = tf.reduce_mean(lossfunc)
 
-        # if self.hps.is_training:
-        self.lr = tf.Variable(self.hps.learning_rate, trainable=False)
-        optimizer = tf.train.AdamOptimizer(self.lr)
+        if self.hps.is_training:
+            self.lr = tf.Variable(self.hps.learning_rate, trainable=False)
+            optimizer = tf.train.AdamOptimizer(self.lr)
 
-        self.kl_weight = tf.Variable(self.hps.kl_weight_start, trainable=False)
-        self.cost = self.r_cost + self.kl_cost * self.kl_weight
+            self.kl_weight = tf.Variable(self.hps.kl_weight_start, trainable=False)
+            self.cost = self.r_cost + self.kl_cost * self.kl_weight
 
-        gvs = optimizer.compute_gradients(self.cost)
-        g = self.hps.grad_clip
-        capped_gvs = [(tf.clip_by_value(grad, -g, g), var)
-                      for grad, var in gvs]
-        self.train_op = optimizer.apply_gradients(
-            capped_gvs, global_step=self.global_step, name='train_step')
+            gvs = optimizer.compute_gradients(self.cost)
+            g = self.hps.grad_clip
+            capped_gvs = [(tf.clip_by_value(grad, -g, g), var)
+                        for grad, var in gvs]
+            self.train_op = optimizer.apply_gradients(
+                capped_gvs, global_step=self.global_step, name='train_step')
 
 
 
