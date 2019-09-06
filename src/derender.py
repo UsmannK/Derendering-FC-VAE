@@ -166,7 +166,7 @@ def reset_graph():
 def train(sess, model, eval_model, train_set, valid_set, test_set):
     """Train a derenderer model"""
     # Setup summary writer.
-    summary_writer = tf.summary.FileWriter(FLAGS.log_root)
+    summary_writer = tf.compat.v1.summary.FileWriter(FLAGS.log_root)
 
     # Calculate trainable params.
     t_vars = tf.trainable_variables()
