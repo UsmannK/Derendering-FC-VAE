@@ -19,10 +19,16 @@ import matplotlib.pyplot as plt
 
 import svgwrite
 
-from derender import *
-from model import *
-from rnn import *
-from utils import *
+# from derender import *
+# from model import *
+# from rnn import *
+# from utils import *
+
+# import our command line tools
+from magenta.models.sketch_rnn.sketch_rnn_train import *
+from magenta.models.sketch_rnn.model import *
+from magenta.models.sketch_rnn.utils import *
+from magenta.models.sketch_rnn.rnn import *
 
 # little function that displays vector images and saves them to .svg
 def draw_strokes(data, factor=0.2, svg_filename = '/tmp/sketch_rnn/svg/sample.svg'):
