@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 def make_model(imageInpt):
     inputSize = 256
@@ -10,6 +11,8 @@ def make_model(imageInpt):
     poolStrides = [4,4]
     if imageInpt.shape[1] != inputSize:
         imageInpt = tf.image.resize_bilinear(imageInpt, [inputSize]*2)
+    shape = imageInpt.shape
+    imageInpt = tf.reshape(imageInpt, (shape[0], shape[1], shape[2], 1))
 
     horizontalKernels = tf.layers.conv2d(inputs = imageInpt,
                                             filters = rectangularFilters,
