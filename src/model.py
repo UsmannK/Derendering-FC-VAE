@@ -258,11 +258,11 @@ class Model(object):
 
         # either do vae-bit and get z, or do unconditional, decoder-only
         if hps.conditional:    # vae mode:
-            if hps.use_conv:
-                self.mean, self.presig = self.cnn_encoder(self.goal_batch)
-            else:
-                self.mean, self.presig = self.encoder(self.output_x,
-                                                  self.sequence_lengths)
+            # if hps.use_conv:
+            self.mean, self.presig = self.cnn_encoder(self.goal_batch)
+            # else:
+            #     self.mean, self.presig = self.encoder(self.output_x,
+            #                                       self.sequence_lengths)
             # sigma > 0. div 2.0 -> sqrt.
             self.sigma = tf.exp(self.presig / 2.0)
             eps = tf.random_normal(
