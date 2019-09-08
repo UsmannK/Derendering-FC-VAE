@@ -101,7 +101,10 @@ def get_bounds(data, factor=10):
         max_y = max(max_y, abs_y)
 
     return (min_x, max_x, min_y, max_y)
-        
+
+def imshow(img):
+    plt.imshow(img, cmap='gray')
+    plt.show()  
 
 def to_normal_strokes(big_stroke):
     """Convert from stroke-5 format (from sketch-rnn paper) back to stroke-3."""
@@ -180,8 +183,9 @@ class DataLoader(object):
             for i in range(1, len(new_stroke)):
                 s_1 = new_stroke[i-1]
                 s_2 = new_stroke[i]
-                rr, cc = line(s_1[1], s_1[0], s_2[1], s_2[0])
-                img[rr, cc] = 1
+                if(s_1[2] == 0):
+                    rr, cc = line(s_1[1], s_1[0], s_2[1], s_2[0])
+                    img[rr, cc] = 1
             images.append(img)
         return images
 

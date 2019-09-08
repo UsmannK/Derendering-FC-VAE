@@ -86,7 +86,7 @@ def save_model(sess, model_save_path, global_step):
     saver.save(sess, checkpoint_path, global_step=global_step)
 
 
-def load_dataset(data_dir, model_params, inference_mode=False):
+def load_datasets(data_dir, model_params, inference_mode=False):
     """Load and preprocess data"""
     data = utils.load_dataset(data_dir)
     train_strokes = data['train']
@@ -349,7 +349,7 @@ def trainer(model_params):
     for key, val in six.iteritems(model_params.values()):
         tf.logging.info('%s = %s', key, str(val))
     tf.logging.info('Loading data files.')
-    datasets = load_dataset(FLAGS.data_dir, model_params)
+    datasets = load_datasets(FLAGS.data_dir, model_params)
 
     train_set = datasets[0]
     valid_set = datasets[1]

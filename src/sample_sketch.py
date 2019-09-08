@@ -116,6 +116,26 @@ def load_model_compatible(model_dir):
     return [model_params, eval_model_params, sample_model_params]
 
 
+def load_env_compatible(data_dir, model_dir):
+    """Loads environment for inference mode, used in jupyter notebook."""
+    # modified https://github.com/tensorflow/magenta/blob/master/magenta/models/sketch_rnn/sketch_rnn_train.py
+    # to work with depreciated tf.HParams functionality
+    model_params = derender_model.get_default_hparams()
+    with tf.gfile.Open(os.path.join(model_dir, 'model_config.json'), 'r') as f:
+        data = json.load(f)
+    fix_list = ['conditional', 'is_training', 'use_input_dropout', 'use_output_dropout', 'use_recurrent_dropout']
+    for fix in fix_list:
+        data[fix] = (data[fix] == 1)
+    model_params.parse_json(json.dumps(data))
+    return load_datasets(data_dir, model_params, inference_mode=True)
+
+def encode(input_strokes, imgs, msl):
+    strokes = to_big_strokes(input_strokes, max_len=msl).tolist()
+    strokes.insert(0, [0, 0, 1, 0, 0])
+    seq_len = [len(input_strokes)]
+    # draw_strokes(to_normal_strokes(np.array(strokes)))
+    return sess.run(eval_model.batch_z, feed_dict={eval_model.input_data: [strokes],eval_model.goal_batch: imgs,eval_model.sequence_lengths: seq_len})[0]
+
 def decode(z_input=None, draw_mode=True, temperature=0, factor=0.2):
     z = None
     if z_input is not None:
@@ -128,11 +148,14 @@ def decode(z_input=None, draw_mode=True, temperature=0, factor=0.2):
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--data_dir")
+parser.add_argument("--model_dir")
 args = parser.parse_args()
 
-model_dir = args.data_dir or '/home/usmann/Development/scratch/sketch_rnn/flamingo/lstm_uncond'
-[hps_model, eval_hps_model, sample_hps_model] = load_model_compatible(model_dir)
+model_dir = args.model_dir or '/tmp/derendering/models/conv/'
+data_dir = '/home/usmann/Development/derendering/data/'
+[train_set, valid_set, test_set, hps_model, eval_hps_model, sample_hps_model] = load_env_compatible(data_dir, model_dir)
+
+# construct the sketch-rnn model here:
 reset_graph()
 model = Model(hps_model)
 eval_model = Model(eval_hps_model, reuse=True)
@@ -140,11 +163,34 @@ sample_model = Model(sample_hps_model, reuse=True)
 
 sess = tf.InteractiveSession()
 sess.run(tf.global_variables_initializer())
+
+# loads the weights from checkpoint into our model
 load_checkpoint(sess, model_dir)
 
-N = 10
-reconstructions = []
-for i in range(N):
-    reconstructions.append([decode(temperature=0.5, draw_mode=False), [0,i]])
-stroke_grid = make_grid_svg(reconstructions)
-draw_strokes(stroke_grid)
+
+# get a sample drawing from the test set, and render it to .svg
+x_3, x_5, s, i = test_set.random_batch()
+imgs = test_set.strokes_to_img(x_3)
+imshow(imgs[0])
+print("{} images".format(len(imgs)))
+
+z = encode(x_3[0], imgs, test_set.max_seq_length)
+
+_ = decode(z, temperature=0.8)
+
+# [hps_model, eval_hps_model, sample_hps_model] = load_model_compatible(model_dir)
+# reset_graph()
+# model = Model(hps_model)
+# eval_model = Model(eval_hps_model, reuse=True)
+# sample_model = Model(sample_hps_model, reuse=True)
+
+# sess = tf.InteractiveSession()
+# sess.run(tf.global_variables_initializer())
+# load_checkpoint(sess, model_dir)
+
+# N = 10
+# reconstructions = []
+# for i in range(N):
+#     reconstructions.append([decode(temperature=0.5, draw_mode=False), [0,i]])
+# stroke_grid = make_grid_svg(reconstructions)
+# draw_strokes(stroke_grid)

@@ -418,7 +418,7 @@ class Model(object):
             optimizer = tf.train.AdamOptimizer(self.lr)
 
             self.kl_weight = tf.Variable(self.hps.kl_weight_start, trainable=False)
-            self.cost = self.r_cost + self.kl_cost * self.kl_weight
+            self.cost = self.r_cost #+ self.kl_cost * self.kl_weight
 
             gvs = optimizer.compute_gradients(self.cost)
             g = self.hps.grad_clip
