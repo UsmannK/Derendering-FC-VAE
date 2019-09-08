@@ -68,7 +68,7 @@ def load_dataset(data_dir, max_files=10):
     """load preprepared datasets"""
     assert data_dir[-1] == '/', "data directory does not have trailing slash: {}".format(data_dir)
     data = {'train': [], 'valid': [], 'test': []}
-    files = [data_dir + x for x in listdir(data_dir)]
+    files = [data_dir + '/' + x for x in listdir(data_dir) if 'crown' in x or 'cookie' in x or 'bicy' in x]
 
     if len(files) > max_files:
         files = files[:10]
