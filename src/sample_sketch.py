@@ -116,7 +116,7 @@ def load_model_compatible(model_dir):
     return [model_params, eval_model_params, sample_model_params]
 
 
-def decode(z_input=None, draw_mode=True, temperature=0.1, factor=0.2):
+def decode(z_input=None, draw_mode=True, temperature=0, factor=0.2):
     z = None
     if z_input is not None:
         z = [z_input]

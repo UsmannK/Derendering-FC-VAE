@@ -15,6 +15,8 @@
 import random
 from os import listdir
 import numpy as np
+from skimage.draw import line
+from matplotlib import pyplot as plt
 
 def augment_strokes(strokes, prob=0.0):
     """Perform data augmentation by randomly dropping out strokes."""
@@ -78,6 +80,7 @@ def load_dataset(data_dir, max_files=10):
         data['test'].extend(images['test'])
         data['valid'].extend(images['valid'])
     return data
+
 def get_bounds(data, factor=10):
     """Return bounds of data."""
     min_x = 0
@@ -98,6 +101,7 @@ def get_bounds(data, factor=10):
         max_y = max(max_y, abs_y)
 
     return (min_x, max_x, min_y, max_y)
+        
 
 def to_normal_strokes(big_stroke):
     """Convert from stroke-5 format (from sketch-rnn paper) back to stroke-3."""
@@ -136,6 +140,88 @@ class DataLoader(object):
         # sets self.strokes (list of ndarrays, one per sketch, in stroke-3 format,
         # sorted by size)
         self.preprocess(strokes)
+        # self.render(strokes[0])
+        # self.images = self.strokes_to_img(strokes)
+
+
+    def strokes_to_img(self, strokes):
+        images = []
+        new_strokes = []
+        for stroke in strokes:
+            new_stroke = []
+            x,y = 0,0
+            for pt in stroke:
+                x += pt[0]
+                y += pt[1]
+                new_stroke.append([x,y,pt[2]])
+
+            min_x = min([pt[0] for pt in new_stroke])
+            min_y = min([pt[1] for pt in new_stroke])
+
+            if min_x < 0:
+                for pt in new_stroke:
+                    pt[0] += (0 - min_x)
+            if min_y < 0:
+                for pt in new_stroke:
+                    pt[1] += (0 - min_y)
+
+            max_x = max([pt[0] for pt in new_stroke])
+            max_y = max([pt[1] for pt in new_stroke])
+
+            max_max = max_y if max_y > max_x else max_x
+            scale_factor = 255/max_max
+
+            for pt in new_stroke:
+                pt[0] = int(scale_factor * pt[0])
+                pt[1] = int(scale_factor * pt[1])
+            new_strokes.append(new_stroke)
+
+            img = np.zeros((256,256))
+            for i in range(1, len(new_stroke)):
+                s_1 = new_stroke[i-1]
+                s_2 = new_stroke[i]
+                rr, cc = line(s_1[1], s_1[0], s_2[1], s_2[0])
+                img[rr, cc] = 1
+            images.append(img)
+        return images
+
+    def render(self, stroke):
+        import cairo
+        with cairo.SVGSurface("example1.svg", 1000, 1000) as surface:
+            CONTEXT = cairo.Context(surface)
+            CONTEXT.set_line_width(10)
+            CONTEXT.set_line_cap(cairo.LINE_CAP_ROUND)
+            CONTEXT.set_source_rgb(1,1,1)
+            CONTEXT.paint()
+            # x, y = 250, 250
+            x, y = stroke[0][0], stroke[0][1]
+            CONTEXT.set_source_rgb(0,0,0)
+            CONTEXT.move_to(x,y)
+            # CONTEXT.line_to(100,400)
+            # CONTEXT.line_to(300,400)
+            move = False
+            for pt in stroke:
+                # x += pt[0]
+                # y += pt[1]
+                x = pt[0]
+                y = pt[1]
+                print("{},{}".format(x,y))
+                if move:
+                    CONTEXT.move_to(x,y)
+                else:
+                    CONTEXT.line_to(x,y)
+                if pt[2] == 1:
+                    # CONTEXT.close_path()
+                    CONTEXT.stroke()
+                    move = True
+            # CONTEXT.close_path()
+            CONTEXT.stroke()
+
+            CONTEXT.set_source_rgb(1, 0, 0)
+            CONTEXT.move_to(250, 250)
+            CONTEXT.close_path()
+            CONTEXT.stroke()
+        print('fin')
 
     def preprocess(self, strokes):
         """Remove entries from strokes having > max_seq_length points."""
@@ -212,8 +298,9 @@ class DataLoader(object):
             length = len(data_copy)
             seq_len.append(length)
         seq_len = np.array(seq_len, dtype=int)
+        images = self.strokes_to_img(x_batch)
         # We return three things: stroke-3 format, stroke-5 format, list of seq_len.
-        return x_batch, self.pad_batch(x_batch, self.max_seq_length), seq_len
+        return x_batch, self.pad_batch(x_batch, self.max_seq_length), seq_len, images
 
     def random_batch(self):
         """Return a randomised portion of the training data."""

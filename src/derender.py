@@ -20,6 +20,7 @@ import time
 import numpy as np
 import six
 import tensorflow as tf
+from tensorflow.python import debug as tf_debug
 
 import model as derender_model
 import utils
@@ -35,7 +36,7 @@ tf.app.flags.DEFINE_string(
     'If data_dir starts with "http://" or "https://", the file will be fetched '
     'remotely.')
 tf.app.flags.DEFINE_string(
-    'log_root', '/tmp/derendering/models/default',
+    'log_root', '/tmp/derendering/models/conv',
     'Directory to store model checkpoints, tensorboard.')
 tf.app.flags.DEFINE_boolean(
     'resume_training', False,
@@ -53,8 +54,8 @@ def evaluate_model(sess, model, data_set):
     total_r_cost = 0.0
     total_kl_cost = 0.0
     for batch in range(data_set.num_batches):
-        unused_orig_x, x, s = data_set.get_batch(batch)
-        feed = {model.input_data: x, model.sequence_lengths: s}
+        unused_orig_x, x, s, i = data_set.get_batch(batch)
+        feed = {model.goal_batch: i, model.input_data: x, model.sequence_lengths: s}
         (cost, r_cost,
         kl_cost) = sess.run([model.cost, model.r_cost, model.kl_cost], feed)
         total_cost += cost
@@ -73,6 +74,8 @@ def load_checkpoint(sess, checkpoint_path):
     if ckpt and ckpt.model_checkpoint_path:
         tf.logging.info('Loading model %s.', ckpt.model_checkpoint_path)
         saver.restore(sess, ckpt.model_checkpoint_path)
+    else:
+        tf.logging.info('Failed to load ckpt from {}'.format(checkpoint_path))
 
 
 def save_model(sess, model_save_path, global_step):
@@ -167,6 +170,7 @@ def train(sess, model, eval_model, train_set, valid_set, test_set):
     """Train a derenderer model"""
     # Setup summary writer.
     summary_writer = tf.compat.v1.summary.FileWriter(FLAGS.log_root)
+    summary_writer.add_graph(sess.graph)
 
     # Calculate trainable params.
     t_vars = tf.trainable_variables()
@@ -198,9 +202,10 @@ def train(sess, model, eval_model, train_set, valid_set, test_set):
         curr_kl_weight = (hps.kl_weight - (hps.kl_weight - hps.kl_weight_start) *
                         (hps.kl_decay_rate)**step)
 
-        _, x, s = train_set.random_batch()
+        _, x, s, i = train_set.random_batch()
         feed = {
             model.input_data: x,
+            model.goal_batch: i,
             model.sequence_lengths: s,
             model.lr: curr_learning_rate,
             model.kl_weight: curr_kl_weight
@@ -357,6 +362,7 @@ def trainer(model_params):
     eval_model = derender_model.Model(eval_model_params, reuse=True)
 
     sess = tf.InteractiveSession()
+    # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
     sess.run(tf.global_variables_initializer())
 
     if FLAGS.resume_training:

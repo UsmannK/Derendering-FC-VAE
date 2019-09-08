@@ -19,6 +19,7 @@ import numpy as np
 import tensorflow as tf
 
 import rnn
+import conv_model
 
 
 def copy_hparams(hparams):
@@ -58,7 +59,8 @@ def get_default_hparams():
         random_scale_factor=0.15,
         augment_stroke_prob=0.10,  # Point dropping augmentation proportion.
         conditional=True,  # When False, use unconditional decoder-only model.
-        is_training=True  # Is model training? Recommend keeping true.
+        is_training=True,  # Is model training? Recommend keeping true.
+        use_conv=False
     )
     return hparams
 
@@ -83,6 +85,25 @@ class Model(object):
             else:
                 tf.logging.info('Model using gpu.')
                 self.build_model(hps)
+    
+    def cnn_encoder(self, goal_batch):
+        image_input = goal_batch # tf.stack([current_batch, goal_batch], axis=3)
+        flattened_conv = tf.layers.Flatten()(conv_model.make_model(image_input))
+        mu = rnn.super_linear(
+            flattened_conv,
+            self.hps.z_size,
+            scope='ENC_RNN_mu',
+            init_w='gaussian',
+            weight_start=0.001
+        )
+        presig = rnn.super_linear(
+            flattened_conv,
+            self.hps.z_size,
+            scope='ENC_RNN_sigma',
+            init_w='gaussian',
+            weight_start=0.001
+        )
+        return mu, presig
 
     def encoder(self, batch, sequence_lengths):
         """Define the bi-directional encoder module of sketch-rnn."""
@@ -116,8 +137,57 @@ class Model(object):
             weight_start=0.001)
         return mu, presig
 
+    # def build_conv_model(self, hps):
+    #     if hps.is_training:
+    #         self.global_step = tf.Variable(
+    #             0, name='global_step', trainable=False)
+    #     cell_fn = rnn.LSTMCell
+
+    #     use_recurrent_dropout = True
+    #     use_input_dropout = False
+    #     use_output_dropout = False
+
+    #     cell = cell_fn(
+    #         hps.dec_rnn_size,
+    #         use_recurrent_dropout=use_recurrent_dropout,
+    #         # dropout_keep_prob=self.hps.recurrent_dropout_prob)
+    #         dropout_keep_prob=0.90)
+
+    #     self.sequence_lengths = tf.placeholder(
+    #         dtype=tf.int32, shape=[self.hps.batch_size])
+        
+    #     self.current_batch = tf.placeholder(tf.float32, [self.hps.batch_size, 256, 256])
+    #     self.goal_batch = tf.placeholder(tf.float32, [self.hps.batch_size, 256, 256])
+
+    #     # self.output_x = self.input_data[:, 1:self.hps.max_seq_len + 1, :]
+
+    #     if hps.conditional: #vae mode
+    #         self.mean, self.presig = self.cnn_encoder(self.goal_batch, self.current_batch)
+
+    #         # sigma > 0. div 2.0 -> sqrt.
+    #         self.sigma = tf.exp(self.presig / 2.0)
+    #         eps = tf.random_normal(
+    #             (self.hps.batch_size, self.hps.z_size), 0.0, 1.0, dtype=tf.float32)
+    #         self.batch_z = self.mean + tf.multiply(self.sigma, eps)
+    #         # KL cost
+    #         self.kl_cost = -0.5 * tf.reduce_mean(
+    #             (1 + self.presig - tf.square(self.mean) - tf.exp(self.presig)))
+    #         self.kl_cost = tf.maximum(self.kl_cost, self.hps.kl_tolerance)
+    #         pre_tile_y = tf.reshape(self.batch_z,
+    #                                 [self.hps.batch_size, 1, self.hps.z_size])
+    #         pass
+            
+
+
+
+
+
     def build_model(self, hps):
         """Define model architecture."""
+        # if hps.use_conv:
+        #     self.build_conv_model(hps)
+        #     return
+
         if hps.is_training:
             self.global_step = tf.Variable(
                 0, name='global_step', trainable=False)
@@ -184,9 +254,14 @@ class Model(object):
         # one step to include initial dummy value of (0, 0, 1, 0, 0))
         self.input_x = self.input_data[:, :self.hps.max_seq_len, :]
 
+        self.goal_batch = tf.placeholder(tf.float32, [self.hps.batch_size, 256, 256])
+
         # either do vae-bit and get z, or do unconditional, decoder-only
         if hps.conditional:    # vae mode:
-            self.mean, self.presig = self.encoder(self.output_x,
+            if hps.use_conv:
+                self.mean, self.presig = self.cnn_encoder(self.goal_batch)
+            else:
+                self.mean, self.presig = self.encoder(self.output_x,
                                                   self.sequence_lengths)
             # sigma > 0. div 2.0 -> sqrt.
             self.sigma = tf.exp(self.presig / 2.0)
@@ -199,8 +274,11 @@ class Model(object):
             self.kl_cost = tf.maximum(self.kl_cost, self.hps.kl_tolerance)
             pre_tile_y = tf.reshape(self.batch_z,
                                     [self.hps.batch_size, 1, self.hps.z_size])
-            overlay_x = tf.tile(pre_tile_y, [1, self.hps.max_seq_len, 1])
-            actual_input_x = tf.concat([self.input_x, overlay_x], 2)
+            if hps.use_conv:
+                overlay_x = tf.tile(pre_tile_y, [1, 1, 1])
+            else:
+                overlay_x = tf.tile(pre_tile_y, [1, self.hps.max_seq_len, 1])
+                actual_input_x = tf.concat([self.input_x, overlay_x], 2)
             self.initial_state = tf.nn.tanh(
                 rnn.super_linear(
                     self.batch_z,
@@ -325,6 +403,7 @@ class Model(object):
 
         # reshape target data so that it is compatible with prediction shape
         target = tf.reshape(self.output_x, [-1, 5])
+        tf.logging.info(target)
         [x1_data, x2_data, eos_data, eoc_data,
             cont_data] = tf.split(target, 5, 1)
         pen_data = tf.concat([eos_data, eoc_data, cont_data], 1)
